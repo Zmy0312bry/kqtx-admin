@@ -1,39 +1,99 @@
 <template>
-  <div class="user-profile">
-    <!-- 个人信息展示卡片 -->
-    <div class="profile-card">
-      <div class="profile-header">
-        <div class="avatar-section">
-          <el-avatar :size="120" :src="userInfo.avatar" class="profile-avatar">
-            <img src="https://cube.elemecdn.com/e/fd/0fc7d20532fdaf769a25683617711png.png" />
-          </el-avatar>
-          <div class="permission-badge" :class="permissionClass">
-            {{ permissionText }}
-          </div>
-        </div>
-        <div class="user-details">
-          <h2 class="username">{{ userInfo.username }}</h2>
-          <div class="info-item">
-            <el-icon><Phone /></el-icon>
-            <span>{{ userInfo.phone }}</span>
-          </div>
-          <div class="info-item">
-            <el-icon><Key /></el-icon>
-            <span>权限等级: {{ userInfo.permission_level }}</span>
-          </div>
-        </div>
-      </div>
-      <div class="profile-actions">
-        <el-button type="primary" @click="showEditDialog">
-          <el-icon><Edit /></el-icon>
-          修改个人信息
-        </el-button>
+  <div class="user-management">
+    <!-- 页面标题 -->
+    <div class="page-header">
+      <h2>人员管理</h2>
+      <div class="header-info">
+        <span>共 {{ totalUsers }} 人</span>
       </div>
     </div>
 
-    <!-- 编辑个人信息对话框 -->
-    <el-dialog v-model="dialogVisible" title="修改个人信息" width="600px" lock-scroll>
+    <!-- 管理员列表表格 -->
+    <el-table
+      :data="adminList"
+      v-loading="loading"
+      stripe
+      class="admin-table"
+      header-row-class-name="table-header"
+      :row-style="{ height: '70px' }"
+    >
+      <el-table-column label="头像" width="100" align="center">
+        <template #default="{ row }">
+          <el-avatar :size="50" :src="row.avatar">
+            <img src="https://cube.elemecdn.com/e/fd/0fc7d20532fdaf769a25683617711png.png" />
+          </el-avatar>
+        </template>
+      </el-table-column>
+
+      <el-table-column prop="openid" label="OpenID" min-width="150" />
+      
+      <el-table-column prop="username" label="用户名" min-width="120">
+        <template #default="{ row }">
+          <span>{{ row.username || '未设置' }}</span>
+        </template>
+      </el-table-column>
+      
+      <el-table-column prop="phone" label="手机号" min-width="140">
+        <template #default="{ row }">
+          <span>{{ row.phone || '未设置' }}</span>
+        </template>
+      </el-table-column>
+      
+      <el-table-column label="权限等级" width="150" align="center">
+        <template #default="{ row }">
+          <el-tag :type="getPermissionTagType(row.permission_level)" effect="dark" size="large">
+            {{ getPermissionText(row.permission_level) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      
+      <el-table-column prop="created_at" label="创建时间" min-width="180">
+        <template #default="{ row }">
+          {{ formatDate(row.created_at) }}
+        </template>
+      </el-table-column>
+      
+      <el-table-column prop="updated_at" label="更新时间" min-width="180">
+        <template #default="{ row }">
+          {{ formatDate(row.updated_at) }}
+        </template>
+      </el-table-column>
+      
+      <el-table-column label="操作" width="140" fixed="right" align="center">
+        <template #default="{ row }">
+          <el-button type="primary" size="small" @click="handleEdit(row)">
+            <el-icon><Edit /></el-icon>
+            编辑
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <!-- 分页 -->
+    <div class="pagination-container">
+      <el-pagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :total="totalUsers"
+        :page-sizes="[5, 10, 20, 50]"
+        layout="total, sizes, prev, pager, next, jumper"
+        @current-change="handlePageChange"
+        @size-change="handleSizeChange"
+      />
+    </div>
+
+    <!-- 编辑管理员信息对话框 -->
+    <el-dialog
+      v-model="dialogVisible"
+      title="编辑管理员信息"
+      width="600px"
+      lock-scroll
+    >
       <el-form :model="editForm" label-width="100px" :rules="rules" ref="formRef">
+        <el-form-item label="OpenID">
+          <el-input v-model="editForm.openid" disabled />
+        </el-form-item>
+
         <el-form-item label="用户名" prop="username">
           <el-input v-model="editForm.username" placeholder="请输入用户名" />
         </el-form-item>
@@ -79,7 +139,9 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveProfile" :loading="loading"> 保存修改 </el-button>
+          <el-button type="primary" @click="saveProfile" :loading="saveLoading">
+            保存修改
+          </el-button>
         </span>
       </template>
     </el-dialog>
@@ -87,27 +149,30 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Phone, Key, Edit, Plus } from '@element-plus/icons-vue'
+import { Edit, Plus } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import request from '../../logic/register.js'
 
 const router = useRouter()
 const formRef = ref(null)
 const loading = ref(false)
+const saveLoading = ref(false)
 const dialogVisible = ref(false)
 
-const userInfo = ref({
-  id: null,
-  openid: '',
-  username: '',
-  phone: '',
-  avatar: '',
-  permission_level: 1,
-})
+// 列表数据
+const adminList = ref([])
+const currentPage = ref(1)
+const pageSize = ref(5)
+const totalUsers = ref(0)
+const totalPages = ref(0)
+
+// 当前编辑的管理员
+const currentAdmin = ref(null)
 
 const editForm = ref({
+  openid: '',
   username: '',
   phone: '',
   password: '',
@@ -115,14 +180,41 @@ const editForm = ref({
   avatar: '',
 })
 
-// 权限等级显示
-const permissionText = computed(() => {
-  return userInfo.value.permission_level === 2 ? '超级管理员' : '管理员'
-})
+// 权限等级文本映射
+const getPermissionText = (level) => {
+  const levelMap = {
+    1: '管理员',
+    2: '超级管理员',
+    3: '网格员',
+    4: '物业管理员',
+  }
+  return levelMap[level] || '未知权限'
+}
 
-const permissionClass = computed(() => {
-  return userInfo.value.permission_level === 2 ? 'super-admin' : 'admin'
-})
+// 权限等级标签类型
+const getPermissionTagType = (level) => {
+  const typeMap = {
+    1: 'primary',
+    2: 'danger',
+    3: 'success',
+    4: 'warning',
+  }
+  return typeMap[level] || 'info'
+}
+
+// 格式化日期
+const formatDate = (dateString) => {
+  if (!dateString) return '未设置'
+  const date = new Date(dateString)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
 
 // 表单验证规则
 const validatePassword = (rule, value, callback) => {
@@ -151,18 +243,22 @@ const rules = {
   confirmPassword: [{ validator: validateConfirmPassword, trigger: 'blur' }],
 }
 
-// 获取用户信息
-const getUserInfo = async () => {
+// 获取管理员列表
+const getAdminList = async () => {
   try {
     loading.value = true
-    const response = await request.get('/user/UserInfo')
+    const response = await request.get(
+      `/user/Adminlist?page=${currentPage.value}&page_size=${pageSize.value}`
+    )
 
-    if (response.code === 200 && response.data && response.data.length > 0) {
-      userInfo.value = response.data[0]
+    if (response.code === 200 && response.data) {
+      adminList.value = response.data.results || []
+      totalUsers.value = response.data.total || 0
+      totalPages.value = response.data.total_pages || 0
     }
   } catch (error) {
-    ElMessage.error('获取用户信息失败')
-    console.error('获取用户信息失败:', error)
+    ElMessage.error('获取管理员列表失败')
+    console.error('获取管理员列表失败:', error)
     if (error.response && error.response.status === 401) {
       router.push('/login')
     }
@@ -171,14 +267,16 @@ const getUserInfo = async () => {
   }
 }
 
-// 显示编辑对话框
-const showEditDialog = () => {
+// 处理编辑
+const handleEdit = (row) => {
+  currentAdmin.value = row
   editForm.value = {
-    username: userInfo.value.username,
-    phone: userInfo.value.phone,
+    openid: row.openid,
+    username: row.username || '',
+    phone: row.phone || '',
     password: '',
     confirmPassword: '',
-    avatar: userInfo.value.avatar,
+    avatar: row.avatar || '',
   }
   dialogVisible.value = true
 }
@@ -189,13 +287,13 @@ const handleAvatarChange = async (file) => {
 
   // 验证文件
   const isImage = rawFile.type.startsWith('image/')
-  const isLt2M = rawFile.size / 1024 / 1024 < 5
+  const isLt5M = rawFile.size / 1024 / 1024 < 5
 
   if (!isImage) {
     ElMessage.error('只能上传图片文件!')
     return
   }
-  if (!isLt2M) {
+  if (!isLt5M) {
     ElMessage.error('上传头像图片大小不能超过 5MB!')
     return
   }
@@ -208,7 +306,7 @@ const handleAvatarChange = async (file) => {
     const response = await request.post('/user/upload_image', formData)
 
     if (response.code === 200 && response.data.path) {
-      // 构建完整的图片URL，移除末尾的 /api
+      // 构建完整的图片URL
       let baseURL = import.meta.env.VITE_API_BASE_URL || ''
       baseURL = baseURL.replace(/\/api$/, '')
       editForm.value.avatar = baseURL + response.data.path
@@ -222,7 +320,7 @@ const handleAvatarChange = async (file) => {
   }
 }
 
-// 保存个人信息
+// 保存管理员信息
 const saveProfile = async () => {
   if (!formRef.value) return
 
@@ -230,7 +328,7 @@ const saveProfile = async () => {
     if (!valid) return
 
     try {
-      loading.value = true
+      saveLoading.value = true
       const updateData = {
         username: editForm.value.username,
         phone: editForm.value.phone,
@@ -242,28 +340,42 @@ const saveProfile = async () => {
         updateData.password = editForm.value.password
       }
 
-      await request.put('/user/Adminlist', updateData)
+      // 使用 openid 作为查询参数
+      await request.put(`/user/Adminlist?openid=${editForm.value.openid}`, updateData)
 
-      ElMessage.success('个人信息修改成功')
+      ElMessage.success('管理员信息修改成功')
       dialogVisible.value = false
-      await getUserInfo() // 刷新用户信息
+      await getAdminList() // 刷新列表
     } catch (error) {
       ElMessage.error('修改失败')
       console.error('修改失败:', error)
     } finally {
-      loading.value = false
+      saveLoading.value = false
     }
   })
 }
 
-// 组件挂载时获取用户信息
+// 处理页码变化
+const handlePageChange = (page) => {
+  currentPage.value = page
+  getAdminList()
+}
+
+// 处理每页数量变化
+const handleSizeChange = (size) => {
+  pageSize.value = size
+  currentPage.value = 1
+  getAdminList()
+}
+
+// 组件挂载时获取列表
 onMounted(() => {
-  getUserInfo()
+  getAdminList()
 })
 </script>
 
 <style scoped>
-.user-profile {
+.user-management {
   padding: 25px;
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
@@ -272,6 +384,8 @@ onMounted(() => {
   border: 1px solid rgba(255, 255, 255, 0.05);
   animation: fadeIn 0.5s ease-out;
   height: 80vh;
+  display: flex;
+  flex-direction: column;
 }
 
 @keyframes fadeIn {
@@ -285,92 +399,154 @@ onMounted(() => {
   }
 }
 
-.profile-card {
-  background: rgba(255, 255, 255, 0.8);
-  border-radius: 16px;
-  padding: 40px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding: 20px 28px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.page-header:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 48px 0 rgba(0, 0, 0, 0.15);
+}
+
+.page-header h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+  letter-spacing: 0.5px;
+}
+
+.header-info {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  font-size: 15px;
+  color: rgba(0, 0, 0, 0.65);
+  font-weight: 500;
+}
+
+.admin-table {
+  flex: 1;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.admin-table:hover {
+  box-shadow: 0 12px 48px 0 rgba(0, 0, 0, 0.15);
+}
+
+:deep(.table-header th) {
+  background: rgba(168, 216, 255, 0.25);
+  backdrop-filter: blur(10px);
+  color: rgba(0, 0, 0, 0.85);
+  font-weight: 600;
+  font-size: 15px;
+  padding: 16px 0;
+  height: 60px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+:deep(.el-table) {
+  background: transparent;
+  font-size: 15px;
+  width: 100%;
+}
+
+:deep(.el-table tr) {
+  background: rgba(255, 255, 255, 0.03);
   transition: all 0.3s ease;
 }
 
-.profile-card:hover {
-  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
-}
-
-.profile-header {
-  display: flex;
-  align-items: center;
-  gap: 40px;
-  margin-bottom: 30px;
-}
-
-.avatar-section {
-  position: relative;
-}
-
-.profile-avatar {
-  border: 4px solid #fff;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-}
-
-.permission-badge {
-  position: absolute;
-  bottom: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 6px 16px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #fff;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.permission-badge.admin {
-  background: linear-gradient(45deg, #409eff, #60acff);
-}
-
-.permission-badge.super-admin {
-  background: linear-gradient(45deg, #f56c6c, #ff7875);
-}
-
-.user-details {
-  flex: 1;
-}
-
-.username {
-  font-size: 28px;
-  font-weight: 700;
-  color: #333;
-  margin: 0 0 20px 0;
-}
-
-.info-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #666;
+:deep(.el-table td) {
+  padding: 18px 0;
   font-size: 15px;
-  margin-bottom: 12px;
+  color: rgba(0, 0, 0, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.info-item .el-icon {
-  color: #409eff;
-  font-size: 18px;
+:deep(.el-table--striped .el-table__body tr.el-table__row--striped td) {
+  background: rgba(255, 255, 255, 0.06);
 }
 
-.profile-actions {
+:deep(.el-table__body tr:hover > td) {
+  background: rgba(168, 216, 255, 0.15) !important;
+}
+
+:deep(.el-table__body tr) {
+  transition: all 0.3s ease;
+}
+
+:deep(.el-table__body tr:hover) {
+  transform: scale(1.005);
+}
+
+:deep(.el-tag) {
+  font-size: 14px;
+  padding: 8px 16px;
+  font-weight: 500;
+  backdrop-filter: blur(5px);
+}
+
+.pagination-container {
+  margin-top: 24px;
   display: flex;
   justify-content: center;
-  padding-top: 20px;
-  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.pagination-container:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 48px 0 rgba(0, 0, 0, 0.15);
+}
+
+:deep(.el-pagination) {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+:deep(.el-pagination .el-pager li) {
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+:deep(.el-pagination .el-pager li:hover) {
+  background: rgba(168, 216, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+:deep(.el-pagination .el-pager li.is-active) {
+  background: linear-gradient(45deg, #409eff, #60acff);
+  color: #000;
+  font-weight: bold;
 }
 
 :deep(.el-button) {
   border-radius: 8px;
-  padding: 12px 32px;
+  padding: 10px 24px;
   font-weight: 500;
   letter-spacing: 0.5px;
   transition: all 0.3s ease;
@@ -382,54 +558,82 @@ onMounted(() => {
 }
 
 :deep(.el-button--primary:hover) {
-  transform: translateY(-2px);
+  background: linear-gradient(45deg, #60acff, #409eff);
+  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+}
+
+:deep(.el-button--default) {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(0, 0, 0, 0.7);
+}
+
+:deep(.el-button--default:hover) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(0, 0, 0, 0.85);
+  transform: translateY(-1px);
 }
 
 /* 弹窗样式 */
 :deep(.el-dialog) {
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  border: 1px solid #eee;
-  margin-top: 10vh !important;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 :deep(.el-dialog__title) {
-  color: #333333;
+  color: rgba(0, 0, 0, 0.85);
   font-size: 18px;
   font-weight: 600;
 }
 
 :deep(.el-dialog__header) {
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   padding: 20px 24px;
   margin: 0;
 }
 
 :deep(.el-dialog__body) {
   padding: 24px;
-  color: #333333;
+  color: rgba(0, 0, 0, 0.85);
 }
 
 :deep(.el-form-item__label) {
-  color: #333333;
+  color: rgba(0, 0, 0, 0.75);
   font-weight: 500;
 }
 
 :deep(.el-input__inner) {
-  color: #333333 !important;
-  background-color: #ffffff !important;
-  border-color: #dcdfe6 !important;
-  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(0, 0, 0, 0.9);
+  transition: all 0.3s ease;
+  border-radius: 8px;
+  caret-color: #409eff;
+}
+
+:deep(.el-input__inner:hover) {
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 :deep(.el-input__inner:focus) {
-  border-color: #409eff !important;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #409eff;
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
 }
 
 :deep(.el-input__inner::placeholder) {
-  color: #909399;
+  color: rgba(0, 0, 0, 0.3);
+}
+
+:deep(.el-input.is-disabled .el-input__inner) {
+  background-color: rgba(255, 255, 255, 0.02) !important;
+  color: rgba(0, 0, 0, 0.4) !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
 }
 
 /* 头像上传 */
@@ -440,7 +644,7 @@ onMounted(() => {
 }
 
 .avatar-uploader {
-  border: 2px dashed #dcdfe6;
+  border: 2px dashed rgba(255, 255, 255, 0.2);
   border-radius: 8px;
   cursor: pointer;
   overflow: hidden;
@@ -450,10 +654,14 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .avatar-uploader:hover {
   border-color: #409eff;
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
 }
 
 .uploaded-avatar {
@@ -464,12 +672,12 @@ onMounted(() => {
 
 .avatar-uploader-icon {
   font-size: 28px;
-  color: #8c939d;
+  color: rgba(0, 0, 0, 0.3);
 }
 
 .upload-tip {
   font-size: 12px;
-  color: #909399;
+  color: rgba(0, 0, 0, 0.5);
   line-height: 1.5;
 }
 
@@ -477,7 +685,7 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  border-top: 1px solid #eee;
   padding-top: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
 }
 </style>

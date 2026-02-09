@@ -1,48 +1,62 @@
 <template>
   <div class="otp-wrapper">
-    <!-- 管理员验证码 -->
+    <!-- 手机号授权 -->
     <div class="otp-code">
       <div class="code-container">
-        <h3>管理员验证码</h3>
-        <div class="code-display">
-          <span class="code">{{ adminOtpCode || '获取中...' }}</span>
-          <el-button
-            v-if="adminOtpCode"
-            type="text"
-            class="copy-button"
-            @click="copyCode(adminOtpCode)"
-          >
-            <el-icon><Document /></el-icon>
-            复制
-          </el-button>
+        <div class="header-container">
+          <h3>手机号授权</h3>
         </div>
-
-        <div class="timer-container">
-          <div class="timer-text">有效期: {{ adminFormattedTime }}</div>
-          <el-progress
-            :percentage="adminTimePercentage"
-            :color="adminProgressColor"
-            :stroke-width="8"
-          />
-        </div>
+        
+        <el-form :model="authForm" label-width="100px">
+          <el-form-item label="手机号">
+            <el-input
+              v-model="authForm.phone"
+              placeholder="请输入手机号"
+              clearable
+            />
+          </el-form-item>
+          
+          <el-form-item label="权限类型">
+            <el-select
+              v-model="authForm.type"
+              placeholder="选择权限类型"
+              class="type-selector"
+            >
+              <el-option label="管理员" value="admin" />
+              <el-option label="网格员" value="grid" />
+              <el-option label="物业管理员" value="property" />
+            </el-select>
+          </el-form-item>
+        </el-form>
 
         <div class="button-group">
           <el-button
             type="primary"
-            @click="getAdminOTPCode"
-            :loading="adminLoading"
-            :disabled="adminIsCountingDown"
+            @click="grantPermission"
+            :loading="authLoading"
           >
-            {{ adminIsCountingDown ? '刷新倒计时中' : '刷新验证码' }}
+            授权
           </el-button>
         </div>
       </div>
     </div>
 
-    <!-- 网格员验证码 -->
+    <!-- 权限验证码 -->
     <div class="otp-code">
       <div class="code-container">
-        <h3>网格员验证码</h3>
+        <div class="header-container">
+          <h3>权限验证码</h3>
+          <el-select
+            v-model="gridType"
+            placeholder="选择类型"
+            class="type-selector"
+            @change="getGridOTPCode"
+          >
+            <el-option label="管理员" value="admin" />
+            <el-option label="网格员" value="grid" />
+            <el-option label="物业管理员" value="property" />
+          </el-select>
+        </div>
         <div class="code-display">
           <span class="code">{{ gridOtpCode || '获取中...' }}</span>
           <el-button
@@ -88,44 +102,54 @@ import { request } from '../../logic/register.js'
 
 const totalTime = 30 // 单位s
 
-// 管理员状态
-const adminOtpCode = ref('')
-const adminLoading = ref(false)
-const adminRemainingTime = ref(0)
-let adminCountdownTimer = null
+// 手机号授权状态
+const authForm = ref({
+  phone: '',
+  type: 'admin'
+})
+const authLoading = ref(false)
 
-// 网格员状态
+// 验证码状态
 const gridOtpCode = ref('')
 const gridLoading = ref(false)
 const gridRemainingTime = ref(0)
+const gridType = ref('admin') // admin: 管理员, grid: 网格员, property: 物业管理员
 let gridCountdownTimer = null
 
-// 管理员计算属性
-const adminFormattedTime = computed(() => {
-  const minutes = Math.floor(adminRemainingTime.value / 60)
-  const seconds = adminRemainingTime.value % 60
-  return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`
-})
-
-const adminTimePercentage = computed(() => {
-  return ((adminRemainingTime.value / totalTime) * 100).toFixed(2)
-})
-
-const adminProgressColor = computed(() => {
-  if (adminTimePercentage.value > 50) {
-    return '#67C23A' // 绿色
-  } else if (adminTimePercentage.value > 20) {
-    return '#E6A23C' // 黄色
-  } else {
-    return '#F56C6C' // 红色
+// 手机号授权
+const grantPermission = async () => {
+  if (!authForm.value.phone) {
+    ElMessage.warning('请输入手机号')
+    return
   }
-})
+  if (!authForm.value.type) {
+    ElMessage.warning('请选择权限类型')
+    return
+  }
+  
+  try {
+    authLoading.value = true
+    const response = await request.put(`/user/Changepermission?type=${authForm.value.type}`, {
+      phone: authForm.value.phone
+    })
+    
+    if (response.code === 200) {
+      const typeName = authForm.value.type === 'admin' ? '管理员' : 
+                       authForm.value.type === 'grid' ? '网格员' : '物业管理员'
+      ElMessage.success(`已成功授予 ${authForm.value.phone} ${typeName}权限`)
+      authForm.value.phone = ''
+    } else {
+      throw new Error('授权失败')
+    }
+  } catch (error) {
+    ElMessage.error('授权失败')
+    console.error('授权失败:', error)
+  } finally {
+    authLoading.value = false
+  }
+}
 
-const adminIsCountingDown = computed(() => {
-  return adminRemainingTime.value > 0
-})
-
-// 网格员计算属性
+// 验证码计算属性
 const gridFormattedTime = computed(() => {
   const minutes = Math.floor(gridRemainingTime.value / 60)
   const seconds = gridRemainingTime.value % 60
@@ -150,31 +174,11 @@ const gridIsCountingDown = computed(() => {
   return gridRemainingTime.value > 0
 })
 
-// 获取管理员OTP验证码
-const getAdminOTPCode = async () => {
-  try {
-    adminLoading.value = true
-    const response = await request.get('/user/Changepermission')
-    if (response.code === 200 && response.data) {
-      adminOtpCode.value = response.data.code || response.data
-      startAdminCountdown()
-    } else {
-      throw new Error('获取验证码失败')
-    }
-  } catch (error) {
-    ElMessage.error('获取管理员验证码失败')
-    console.error('获取管理员验证码失败:', error)
-  } finally {
-    adminLoading.value = false
-  }
-}
-
-// 获取网格员OTP验证码（假设使用不同的API端点，如果相同请修改）
+// 获取OTP验证码
 const getGridOTPCode = async () => {
   try {
     gridLoading.value = true
-    // TODO: 修改为网格员的实际API端点
-    const response = await request.get('/user/GridChangepermission')
+    const response = await request.get(`/user/Changepermission?type=${gridType.value}`)
     if (response.code === 200 && response.data) {
       gridOtpCode.value = response.data.code || response.data
       startGridCountdown()
@@ -182,8 +186,10 @@ const getGridOTPCode = async () => {
       throw new Error('获取验证码失败')
     }
   } catch (error) {
-    ElMessage.error('获取网格员验证码失败')
-    console.error('获取网格员验证码失败:', error)
+    const typeName = gridType.value === 'admin' ? '管理员' : 
+                     gridType.value === 'grid' ? '网格员' : '物业管理员'
+    ElMessage.error(`获取${typeName}验证码失败`)
+    console.error(`获取${typeName}验证码失败:`, error)
   } finally {
     gridLoading.value = false
   }
@@ -204,25 +210,7 @@ const copyCode = (code) => {
     })
 }
 
-// 开始管理员倒计时
-const startAdminCountdown = () => {
-  if (adminCountdownTimer) {
-    clearInterval(adminCountdownTimer)
-  }
-
-  adminRemainingTime.value = totalTime
-
-  adminCountdownTimer = setInterval(() => {
-    if (adminRemainingTime.value > 0) {
-      adminRemainingTime.value--
-    } else {
-      adminOtpCode.value = '已过期'
-      clearInterval(adminCountdownTimer)
-    }
-  }, 1000)
-}
-
-// 开始网格员倒计时
+// 开始倒计时
 const startGridCountdown = () => {
   if (gridCountdownTimer) {
     clearInterval(gridCountdownTimer)
@@ -242,15 +230,11 @@ const startGridCountdown = () => {
 
 // 组件加载时获取验证码
 onMounted(() => {
-  getAdminOTPCode()
   getGridOTPCode()
 })
 
 // 组件卸载时清除计时器
 onUnmounted(() => {
-  if (adminCountdownTimer) {
-    clearInterval(adminCountdownTimer)
-  }
   if (gridCountdownTimer) {
     clearInterval(gridCountdownTimer)
   }
@@ -290,11 +274,48 @@ onUnmounted(() => {
   gap: 20px;
 }
 
+.header-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 h3 {
   margin: 0;
   color: #333;
   font-size: 18px;
   font-weight: 600;
+  text-align: center;
+}
+
+.type-selector {
+  width: 100%;
+}
+
+:deep(.type-selector .el-input__wrapper) {
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85));
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  padding: 8px 12px;
+  border: 1px solid rgba(64, 158, 255, 0.1);
+}
+
+:deep(.type-selector .el-input__wrapper:hover) {
+  box-shadow: 0 4px 16px rgba(64, 158, 255, 0.25);
+  border-color: rgba(64, 158, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+:deep(.type-selector .el-input__inner) {
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+}
+
+:deep(.type-selector .el-select__caret) {
+  font-size: 16px;
+  color: #409eff;
 }
 
 .code-display {
@@ -362,6 +383,39 @@ h3 {
   opacity: 0.7;
   transform: none;
   box-shadow: none;
+}
+
+/* 表单样式 */
+:deep(.el-form-item) {
+  margin-bottom: 20px;
+}
+
+:deep(.el-form-item__label) {
+  color: rgba(0, 0, 0, 0.75);
+  font-weight: 500;
+}
+
+:deep(.el-input__wrapper) {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  border: 1px solid rgba(64, 158, 255, 0.1);
+}
+
+:deep(.el-input__wrapper:hover) {
+  box-shadow: 0 4px 16px rgba(64, 158, 255, 0.25);
+  border-color: rgba(64, 158, 255, 0.3);
+}
+
+:deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 4px 16px rgba(64, 158, 255, 0.35);
+  border-color: #409eff;
+}
+
+:deep(.el-input__inner) {
+  color: #333;
+  font-size: 15px;
 }
 
 .copy-button {
