@@ -1,5 +1,19 @@
 <template>
   <div class="unsolved-panel">
+    <!-- 派单筛选开关 -->
+    <div class="filter-section">
+      <span class="filter-label">派单状态：</span>
+      <el-radio-group
+        v-model="dispatchFilter"
+        @change="handleDispatchFilterChange"
+        class="filter-radio-group"
+      >
+        <el-radio-button :value="0">全部</el-radio-button>
+        <el-radio-button :value="1">未派单</el-radio-button>
+        <el-radio-button :value="2">已派单</el-radio-button>
+      </el-radio-group>
+    </div>
+
     <!-- Form data table -->
     <el-table :data="formList" style="width: 100%" @row-click="handleRowClick">
       <el-table-column prop="serial_number" label="表单编号" width="120" />
@@ -14,13 +28,28 @@
           {{ formatTime(scope.row.upload_time) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column label="操作" width="200" fixed="right">
         <template #default="scope">
+          <el-button
+            v-if="!scope.row.is_dispatched"
+            type="success"
+            size="small"
+            @click.stop="handleDispatch(scope.row)"
+            class="mr-10"
+          >
+            派单
+          </el-button>
           <el-button type="primary" size="small" @click.stop="handleProcess(scope.row)">
             处理
           </el-button>
         </template>
       </el-table-column>
+      <!-- 空状态显示 -->
+      <template #empty>
+        <div class="empty-state">
+          <el-empty description="暂无数据" />
+        </div>
+      </template>
     </el-table>
 
     <!-- Pagination -->
@@ -227,6 +256,58 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 派单对话框 -->
+    <el-dialog v-model="dispatchDialogVisible" title="选择派单人员" width="50%" destroy-on-close>
+      <div class="dispatch-dialog">
+        <el-table
+          :data="adminList"
+          style="width: 100%"
+          highlight-current-row
+          @current-change="handleAdminSelect"
+          max-height="400"
+        >
+          <el-table-column prop="id" label="ID" width="60" />
+          <el-table-column prop="openid" label="OpenID" width="150" />
+          <el-table-column prop="phone" label="手机号" width="150" />
+          <el-table-column label="权限等级" width="100">
+            <template #default="scope">
+              <el-tag v-if="scope.row.permission_level === 1" type="info">普通管理员</el-tag>
+              <el-tag v-else-if="scope.row.permission_level === 4" type="danger">物业人员</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="created_at" label="创建时间" width="180">
+            <template #default="scope">
+              {{ formatTime(scope.row.created_at) }}
+            </template>
+          </el-table-column>
+        </el-table>
+        <div class="admin-pagination">
+          <el-pagination
+            background
+            :current-page="adminPage"
+            :page-size="adminPageSize"
+            :total="adminTotal"
+            layout="total, prev, pager, next"
+            @current-change="handleAdminPageChange"
+          ></el-pagination>
+        </div>
+      </div>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="dispatchDialogVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            @click="submitDispatch"
+            :loading="dispatching"
+            :disabled="!selectedAdminOpenid"
+          >
+            确定派单
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -254,6 +335,17 @@ const submitting = ref(false)
 const processFormRef = ref(null)
 const uploadFileList = ref([])
 const uploadedImages = ref([])
+
+// 派单相关
+const dispatchFilter = ref(0) // 0: 全部, 1: 未派单, 2: 已派单
+const dispatchDialogVisible = ref(false)
+const dispatching = ref(false)
+const currentDispatchForm = ref(null)
+const selectedAdminOpenid = ref('')
+const adminList = ref([])
+const adminTotal = ref(0)
+const adminPage = ref(1)
+const adminPageSize = ref(5)
 
 const imageBaseUrl = import.meta.env.VITE_API_BASE_URL.replace(/\/api$/, '')
 
@@ -295,9 +387,16 @@ const processRules = {
 // 获取未处理表单列表
 const fetchForms = async () => {
   try {
-    const response = await request.get(
-      `/proceed/admin_form?page=${currentPage.value}&page_size=${pageSize.value}&finish=0`,
-    )
+    let url = `/proceed/admin_form?page=${currentPage.value}&page_size=${pageSize.value}&finish=0`
+
+    // 添加派单筛选参数
+    if (dispatchFilter.value === 1) {
+      url += '&is_dispatch=0'
+    } else if (dispatchFilter.value === 2) {
+      url += '&is_dispatch=1'
+    }
+
+    const response = await request.get(url)
     if (response.code === 200) {
       formList.value = response.data.results || []
       total.value = response.data.total || 0
@@ -308,12 +407,32 @@ const fetchForms = async () => {
         await fetchForms()
       }
     } else {
-      ElMessage.error(response.message || '获取表单列表失败')
+      // 判断是否为"表单不存在"错误，如果是则只显示空状态，不报错
+      if (response.message !== '出现错误：表单不存在') {
+        ElMessage.error(response.message || '获取表单列表失败')
+      } else {
+        // 表单不存在时，清空列表并让表格显示空状态
+        formList.value = []
+        total.value = 0
+      }
     }
   } catch (error) {
-    ElMessage.error('获取表单列表失败')
-    console.error('Failed to fetch forms:', error)
+    // 判断是否为"表单不存在"错误，如果是则只显示空状态，不报错
+    if (error.response?.data?.message !== '出现错误：表单不存在') {
+      ElMessage.error('获取表单列表失败')
+      console.error('Failed to fetch forms:', error)
+    } else {
+      // 表单不存在时，清空列表并让表格显示空状态
+      formList.value = []
+      total.value = 0
+    }
   }
+}
+
+// 处理派单筛选变化
+const handleDispatchFilterChange = () => {
+  currentPage.value = 1
+  fetchForms()
 }
 
 const handleCurrentChange = async (val = 1) => {
@@ -328,6 +447,11 @@ const handleSizeChange = async (val) => {
 }
 
 const formatTime = (timestamp) => {
+  // 如果是ISO格式的时间字符串（如管理员创建时间），直接格式化
+  if (typeof timestamp === 'string' && timestamp.includes('T')) {
+    return dayjs(timestamp).tz('Asia/Shanghai').format('YYYY-MM-DD HH:mm:ss')
+  }
+  // 如果是Unix时间戳，转换为日期时间
   return dayjs.unix(timestamp).tz('Asia/Shanghai').format('YYYY-MM-DD HH:mm:ss')
 }
 
@@ -338,12 +462,14 @@ const handleRowClick = async (row) => {
     if (response.code === 200 && response.data.length > 0) {
       currentForm.value = response.data[0]
       dialogVisible.value = true
-    } else {
+    } else if (response.message !== '出现错误：表单不存在') {
       ElMessage.error('获取详细信息失败')
     }
   } catch (error) {
-    ElMessage.error('获取详细信息失败')
-    console.error('Failed to fetch form details:', error)
+    if (error.response?.data?.message !== '出现错误：表单不存在') {
+      ElMessage.error('获取详细信息失败')
+      console.error('Failed to fetch form details:', error)
+    }
   }
 }
 
@@ -357,12 +483,14 @@ const handleProcess = async (row) => {
       processForm.value.name = userInfo.value.username
       processForm.value.phone = userInfo.value.phone
       processDialogVisible.value = true
-    } else {
+    } else if (response.message !== '出现错误：表单不存在') {
       ElMessage.error('获取详细信息失败')
     }
   } catch (error) {
-    ElMessage.error('获取详细信息失败')
-    console.error('Failed to fetch form details:', error)
+    if (error.response?.data?.message !== '出现错误：表单不存在') {
+      ElMessage.error('获取详细信息失败')
+      console.error('Failed to fetch form details:', error)
+    }
   }
 }
 
@@ -496,6 +624,76 @@ const getUserInfo = async () => {
   }
 }
 
+// 获取管理员列表
+const fetchAdminList = async () => {
+  try {
+    const response = await request.get(
+      `/user/Adminlist?page=${adminPage.value}&page_size=${adminPageSize.value}`,
+    )
+    if (response.code === 200) {
+      // 只筛选 permission_level 为 1 和 4 的管理员
+      adminList.value = (response.data.results || []).filter(
+        (admin) => admin.permission_level === 1 || admin.permission_level === 4,
+      )
+      adminTotal.value = adminList.value.length
+    } else {
+      ElMessage.error(response.message || '获取管理员列表失败')
+    }
+  } catch (error) {
+    ElMessage.error('获取管理员列表失败')
+    console.error('Failed to fetch admin list:', error)
+  }
+}
+
+// 管理员列表分页变化
+const handleAdminPageChange = (page) => {
+  adminPage.value = page
+  fetchAdminList()
+}
+
+// 打开派单对话框
+const handleDispatch = (row) => {
+  currentDispatchForm.value = row
+  selectedAdminOpenid.value = ''
+  adminPage.value = 1
+  fetchAdminList()
+  dispatchDialogVisible.value = true
+}
+
+// 选择管理员
+const handleAdminSelect = (row) => {
+  selectedAdminOpenid.value = row.openid
+}
+
+// 提交派单
+const submitDispatch = async () => {
+  if (!currentDispatchForm.value || !selectedAdminOpenid.value) {
+    ElMessage.warning('请选择要派单的管理员')
+    return
+  }
+
+  try {
+    dispatching.value = true
+    const response = await request.post(
+      `/proceed/dispatch_order?openid=${selectedAdminOpenid.value}&uuidx=${currentDispatchForm.value.uuidx}`,
+    )
+
+    if (response.code === 200) {
+      ElMessage.success('派单成功')
+      dispatchDialogVisible.value = false
+      // 刷新表单列表
+      await fetchForms()
+    } else {
+      ElMessage.error(response.message || '派单失败')
+    }
+  } catch (error) {
+    ElMessage.error('派单失败')
+    console.error('Failed to dispatch order:', error)
+  } finally {
+    dispatching.value = false
+  }
+}
+
 // Lifecycle
 onMounted(() => {
   getUserInfo()
@@ -512,6 +710,56 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
   transition: all 0.3s ease;
+}
+
+.filter-section {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  background-color: white;
+  padding: 15px 20px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.filter-label {
+  font-size: 14px;
+  color: #606266;
+  margin-right: 15px;
+  font-weight: 500;
+}
+
+.filter-radio-group {
+  flex: 1;
+}
+
+:deep(.filter-radio-group .el-radio-button__inner) {
+  padding: 8px 20px;
+  font-size: 14px;
+}
+
+:deep(.filter-radio-group .el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background-color: #409eff;
+  border-color: #409eff;
+  color: white;
+}
+
+.mr-10 {
+  margin-right: 10px;
+}
+
+.dispatch-dialog {
+  padding: 10px 0;
+}
+
+.admin-pagination {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+:deep(.el-table__row.current-row) {
+  background-color: #ecf5ff;
 }
 
 .unsolved-panel:hover {
@@ -643,5 +891,9 @@ onMounted(() => {
 
 :deep(.el-table__row:hover) {
   background-color: #f5f7fa;
+}
+
+.empty-state {
+  padding: 40px 0;
 }
 </style>

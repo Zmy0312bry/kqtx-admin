@@ -38,7 +38,7 @@
     <el-dialog v-model="dialogVisible" title="添加新风采" width="500px">
       <el-form :model="newshow" label-width="80px">
         <el-form-item label="链接">
-          <el-input v-model="newshow" placeholder="请输入微信公众号链接" />
+          <el-input v-model="newshow.url" placeholder="请输入微信公众号链接" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -62,7 +62,9 @@ const showList = ref([])
 const currentShow = ref(null)
 const dialogVisible = ref(false)
 const loading = ref(false)
-const newshow = ref('')
+const newshow = ref({
+  url: '',
+})
 
 const currentPage = ref(1)
 const pageSize = ref(9)
@@ -101,7 +103,7 @@ const getShowList = async (isLoadMore = false) => {
 
 // 添加风采后重置列表
 const addShow = async () => {
-  if (!newshow.value) {
+  if (!newshow.value.url) {
     ElMessage.warning('请填写完整信息')
     return
   }
@@ -109,7 +111,7 @@ const addShow = async () => {
   try {
     loading.value = true
     const formData = new FormData()
-    formData.append('url', newshow.value)
+    formData.append('url', newshow.value.url)
     await request.post('/community/tweet', formData)
     ElMessage.success('添加成功')
     dialogVisible.value = false
@@ -165,7 +167,7 @@ const selectShow = (show) => {
 
 // 显示添加对话框
 const showAddDialog = () => {
-  newshow.value = ''
+  newshow.value.url = ''
   dialogVisible.value = true
 }
 
