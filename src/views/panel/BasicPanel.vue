@@ -3,33 +3,38 @@
     <!-- 顶部栏：标签页 + 我的信息按钮 -->
     <div class="panel-header">
       <el-tabs class="custom-tabs">
-      <el-tab-pane label="人员管理">
-        <transition name="fade-slide">
-          <UserProfile />
-        </transition>
-      </el-tab-pane>
-      <el-tab-pane label="电话管理">
-        <transition name="fade-slide">
-          <CommunityPhone />
-        </transition>
-      </el-tab-pane>
-      <el-tab-pane label="轮播图管理">
-        <transition name="fade-slide">
-          <SwitchBanner />
-        </transition>
-      </el-tab-pane>
-      <el-tab-pane label="温馨提示">
-        <transition name="fade-slide">
-          <WarmNotice />
-        </transition>
-      </el-tab-pane>
-      <el-tab-pane label="权限校验管理">
-        <transition name="fade-slide">
-          <OTPCode />
-        </transition>
-      </el-tab-pane>
+        <el-tab-pane label="人员管理">
+          <transition name="fade-slide">
+            <UserProfile />
+          </transition>
+        </el-tab-pane>
+        <el-tab-pane label="电话管理">
+          <transition name="fade-slide">
+            <CommunityPhone />
+          </transition>
+        </el-tab-pane>
+        <el-tab-pane label="轮播图管理">
+          <transition name="fade-slide">
+            <SwitchBanner />
+          </transition>
+        </el-tab-pane>
+        <el-tab-pane label="温馨提示">
+          <transition name="fade-slide">
+            <WarmNotice />
+          </transition>
+        </el-tab-pane>
+        <el-tab-pane label="权限校验管理">
+          <transition name="fade-slide">
+            <OTPCode />
+          </transition>
+        </el-tab-pane>
+        <el-tab-pane label="重点人员管理">
+          <transition name="fade-slide">
+            <ImportantUser />
+          </transition>
+        </el-tab-pane>
       </el-tabs>
-      
+
       <!-- 我的信息按钮 -->
       <div class="my-info-btn" @click="openMyInfo">
         <el-icon :size="20"><User /></el-icon>
@@ -38,12 +43,7 @@
     </div>
 
     <!-- 个人信息编辑对话框 -->
-    <el-dialog
-      v-model="dialogVisible"
-      title="我的信息"
-      width="600px"
-      lock-scroll
-    >
+    <el-dialog v-model="dialogVisible" title="我的信息" width="600px" lock-scroll>
       <el-form :model="myInfoForm" label-width="100px" :rules="rules" ref="formRef">
         <el-form-item label="OpenID">
           <el-input v-model="myInfoForm.openid" disabled />
@@ -92,7 +92,11 @@
         </el-form-item>
 
         <el-form-item label="权限等级">
-          <el-tag :type="getPermissionTagType(myInfoForm.permission_level)" effect="dark" size="large">
+          <el-tag
+            :type="getPermissionTagType(myInfoForm.permission_level)"
+            effect="dark"
+            size="large"
+          >
             {{ getPermissionText(myInfoForm.permission_level) }}
           </el-tag>
         </el-form-item>
@@ -118,6 +122,7 @@ import CommunityPhone from '@/components/adminpanel/CommunityPhone.vue'
 import SwitchBanner from '@/components/adminpanel/SwitchBanner.vue'
 import WarmNotice from '@/components/adminpanel/WarmNotice.vue'
 import OTPCode from '@/components/adminpanel/OTPCode.vue'
+import ImportantUser from '@/components/adminpanel/ImportantUser.vue'
 import request from '@/logic/register.js'
 
 const formRef = ref(null)
@@ -188,12 +193,12 @@ const rules = {
 const openMyInfo = async () => {
   try {
     const response = await request.get('/user/UserInfo')
-    console.log(response);
-    
+    console.log(response)
+
     // response.data 是数组，取第一个元素
     if (response.data && response.data.length > 0) {
       const userInfo = response.data[0]
-      
+
       // 构建完整的头像URL
       let avatarUrl = userInfo.avatar || ''
       if (avatarUrl && !avatarUrl.startsWith('http')) {
@@ -201,7 +206,7 @@ const openMyInfo = async () => {
         baseURL = baseURL.replace(/\/api$/, '')
         avatarUrl = baseURL + avatarUrl
       }
-      
+
       myInfoForm.value = {
         openid: userInfo.openid || '',
         username: userInfo.username || '',
