@@ -2,15 +2,15 @@
   <div class="user-management">
     <!-- 页面标题 -->
     <div class="page-header">
-      <h2>人员管理</h2>
+      <h2>重点人员管理</h2>
       <div class="header-info">
         <span>共 {{ totalUsers }} 人</span>
       </div>
     </div>
 
-    <!-- 管理员列表表格 -->
+    <!-- 重点人员列表表格 -->
     <el-table
-      :data="adminList"
+      :data="importantUserList"
       v-loading="loading"
       stripe
       class="admin-table"
@@ -47,6 +47,12 @@
         </template>
       </el-table-column>
 
+      <el-table-column prop="finished_forms_count" label="已完成表单" width="120" align="center">
+        <template #default="{ row }">
+          <span>{{ row.finished_forms_count }}</span>
+        </template>
+      </el-table-column>
+
       <el-table-column prop="created_at" label="创建时间" min-width="180">
         <template #default="{ row }">
           {{ formatDate(row.created_at) }}
@@ -61,9 +67,9 @@
 
       <el-table-column label="操作" width="140" fixed="right" align="center">
         <template #default="{ row }">
-          <el-button type="primary" size="small" @click="handleEdit(row)">
-            <el-icon><Edit /></el-icon>
-            编辑
+          <el-button type="danger" size="small" @click="handleDelete(row)">
+            <el-icon><Delete /></el-icon>
+            删除
           </el-button>
         </template>
       </el-table-column>
@@ -82,106 +88,59 @@
       />
     </div>
 
-    <!-- 编辑管理员信息对话框 -->
+    <!-- 添加重点人员对话框 -->
     <el-dialog
-      v-model="dialogVisible"
-      title="编辑管理员信息"
-      width="600px"
+      v-model="addDialogVisible"
+      title="添加重点人员"
+      width="500px"
       lock-scroll
       destroy-on-close
       close-on-click-modal
       close-on-press-escape
       append-to-body
     >
-      <el-form :model="editForm" label-width="100px" :rules="rules" ref="formRef">
-        <el-form-item label="OpenID">
-          <el-input v-model="editForm.openid" disabled />
-        </el-form-item>
-
-        <el-form-item label="用户名" prop="username">
-          <el-input v-model="editForm.username" placeholder="请输入用户名" />
-        </el-form-item>
-
+      <el-form :model="addForm" label-width="100px" :rules="addRules" ref="addFormRef">
         <el-form-item label="手机号" prop="phone">
-          <el-input v-model="editForm.phone" placeholder="请输入手机号" />
-        </el-form-item>
-
-        <el-form-item label="新密码" prop="password">
-          <el-input
-            v-model="editForm.password"
-            type="password"
-            placeholder="不修改密码请留空"
-            show-password
-          />
-        </el-form-item>
-
-        <el-form-item label="确认密码" prop="confirmPassword">
-          <el-input
-            v-model="editForm.confirmPassword"
-            type="password"
-            placeholder="请再次输入新密码"
-            show-password
-          />
-        </el-form-item>
-
-        <el-form-item label="头像">
-          <div class="avatar-upload">
-            <el-upload
-              class="avatar-uploader"
-              :auto-upload="false"
-              :show-file-list="false"
-              :on-change="handleAvatarChange"
-              accept="image/*"
-            >
-              <img v-if="editForm.avatar" :src="editForm.avatar" class="uploaded-avatar" />
-              <el-icon v-else class="avatar-uploader-icon"><Plus /></el-icon>
-            </el-upload>
-            <div class="upload-tip">点击上传新头像 (支持 JPG、PNG、WEBP 格式，不超过 5MB)</div>
-          </div>
+          <el-input v-model="addForm.phone" placeholder="请输入手机号" />
         </el-form-item>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="saveProfile" :loading="saveLoading">
-            保存修改
+          <el-button @click="addDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleAddUser" :loading="addLoading">
+            添加
           </el-button>
         </span>
       </template>
     </el-dialog>
+
+    <!-- 添加按钮 -->
+    <el-button type="primary" class="add-btn" @click="openAddDialog">
+      <el-icon><Plus /></el-icon>
+      添加重点人员
+    </el-button>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Edit, Plus } from '@element-plus/icons-vue'
-import { useRouter } from 'vue-router'
-import request from '../../logic/register.js'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Delete, Plus } from '@element-plus/icons-vue'
+import request from '@/logic/register.js'
 
-const router = useRouter()
-const formRef = ref(null)
 const loading = ref(false)
-const saveLoading = ref(false)
-const dialogVisible = ref(false)
-
-// 列表数据
-const adminList = ref([])
+const addLoading = ref(false)
+const addDialogVisible = ref(false)
+const importantUserList = ref([])
 const currentPage = ref(1)
-const pageSize = ref(5)
+const pageSize = ref(16)
 const totalUsers = ref(0)
 const totalPages = ref(0)
+const addFormRef = ref(null)
 
-// 当前编辑的管理员
-const currentAdmin = ref(null)
-
-const editForm = ref({
-  openid: '',
-  username: '',
+// 添加重点人员表单
+const addForm = ref({
   phone: '',
-  password: '',
-  confirmPassword: '',
-  avatar: '',
 })
 
 // 权限等级文本映射
@@ -206,175 +165,140 @@ const getPermissionTagType = (level) => {
   return typeMap[level] || 'info'
 }
 
-// 格式化日期
+// 格式化日期时间
 const formatDate = (dateString) => {
-  if (!dateString) return '未设置'
+  if (!dateString) return '-'
   const date = new Date(dateString)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hour = String(date.getHours()).padStart(2, '0')
+  const minute = String(date.getMinutes()).padStart(2, '0')
+  const second = String(date.getSeconds()).padStart(2, '0')
+  return `${year}-${month}-${day} ${hour}:${minute}:${second}`
 }
 
 // 表单验证规则
-const validatePassword = (rule, value, callback) => {
-  if (value && value.length < 6) {
-    callback(new Error('密码长度不能少于6位'))
-  } else {
-    callback()
-  }
-}
-
-const validateConfirmPassword = (rule, value, callback) => {
-  if (editForm.value.password && value !== editForm.value.password) {
-    callback(new Error('两次输入的密码不一致'))
-  } else {
-    callback()
-  }
-}
-
-const rules = {
-  username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 2, max: 20, message: '用户名长度在 2 到 20 个字符', trigger: 'blur' },
+const addRules = {
+  phone: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号格式', trigger: 'blur' },
   ],
-  phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }],
-  password: [{ validator: validatePassword, trigger: 'blur' }],
-  confirmPassword: [{ validator: validateConfirmPassword, trigger: 'blur' }],
 }
 
-// 获取管理员列表
-const getAdminList = async () => {
+// 获取重点人员列表
+const getImportantUserList = async () => {
   try {
     loading.value = true
-    const response = await request.get(
-      `/user/Adminlist?page=${currentPage.value}&page_size=${pageSize.value}`,
-    )
+    const response = await request.get('/user/important_users', {
+      params: {
+        page: currentPage.value,
+        page_size: pageSize.value,
+      },
+    })
 
     if (response.code === 200 && response.data) {
-      adminList.value = response.data.results || []
+      importantUserList.value = response.data.results || []
       totalUsers.value = response.data.total || 0
       totalPages.value = response.data.total_pages || 0
+
+      // 构建完整的头像URL
+      importantUserList.value.forEach(user => {
+        if (user.avatar && !user.avatar.startsWith('http')) {
+          let baseURL = import.meta.env.VITE_API_BASE_URL || ''
+          baseURL = baseURL.replace(/\/api$/, '')
+          user.avatar = baseURL + user.avatar
+        }
+      })
+    } else {
+      ElMessage.error('获取重点人员列表失败')
     }
   } catch (error) {
-    ElMessage.error('获取管理员列表失败')
-    console.error('获取管理员列表失败:', error)
-    if (error.response && error.response.status === 401) {
-      router.push('/login')
-    }
+    ElMessage.error('获取重点人员列表失败')
+    console.error('获取重点人员列表失败:', error)
   } finally {
     loading.value = false
   }
 }
 
-// 处理编辑
-const handleEdit = (row) => {
-  currentAdmin.value = row
-  editForm.value = {
-    openid: row.openid,
-    username: row.username || '',
-    phone: row.phone || '',
-    password: '',
-    confirmPassword: '',
-    avatar: row.avatar || '',
+// 打开添加对话框
+const openAddDialog = () => {
+  addForm.value = {
+    phone: '',
   }
-  dialogVisible.value = true
+  addDialogVisible.value = true
 }
 
-// 头像选择处理
-const handleAvatarChange = async (file) => {
-  const rawFile = file.raw
+// 添加重点人员
+const handleAddUser = async () => {
+  if (!addFormRef.value) return
 
-  // 验证文件
-  const isImage = rawFile.type.startsWith('image/')
-  const isLt5M = rawFile.size / 1024 / 1024 < 5
-
-  if (!isImage) {
-    ElMessage.error('只能上传图片文件!')
-    return
-  }
-  if (!isLt5M) {
-    ElMessage.error('上传头像图片大小不能超过 5MB!')
-    return
-  }
-
-  // 上传文件
-  try {
-    const formData = new FormData()
-    formData.append('file', rawFile)
-
-    const response = await request.post('/user/upload_image', formData)
-
-    if (response.code === 200 && response.data.path) {
-      // 构建完整的图片URL
-      let baseURL = import.meta.env.VITE_API_BASE_URL || ''
-      baseURL = baseURL.replace(/\/api$/, '')
-      editForm.value.avatar = baseURL + response.data.path
-      ElMessage.success('头像上传成功')
-    } else {
-      ElMessage.error('头像上传失败')
-    }
-  } catch (error) {
-    ElMessage.error('头像上传失败')
-    console.error('头像上传失败:', error)
-  }
-}
-
-// 保存管理员信息
-const saveProfile = async () => {
-  if (!formRef.value) return
-
-  await formRef.value.validate(async (valid) => {
+  await addFormRef.value.validate(async (valid) => {
     if (!valid) return
 
     try {
-      saveLoading.value = true
-      const updateData = {
-        username: editForm.value.username,
-        phone: editForm.value.phone,
-        avatar: editForm.value.avatar,
-      }
+      addLoading.value = true
+      await request.post('/user/important_users', {
+        phone: addForm.value.phone,
+      })
 
-      // 如果有输入密码，则包含密码字段
-      if (editForm.value.password) {
-        updateData.password = editForm.value.password
-      }
-
-      // 使用 openid 作为查询参数
-      await request.put(`/user/Adminlist?openid=${editForm.value.openid}`, updateData)
-
-      ElMessage.success('管理员信息修改成功')
-      dialogVisible.value = false
-      await getAdminList() // 刷新列表
+      ElMessage.success('添加重点人员成功')
+      addDialogVisible.value = false
+      await getImportantUserList()
     } catch (error) {
-      ElMessage.error('修改失败')
-      console.error('修改失败:', error)
+      ElMessage.error('添加重点人员失败')
+      console.error('添加重点人员失败:', error)
     } finally {
-      saveLoading.value = false
+      addLoading.value = false
     }
   })
 }
 
-// 处理页码变化
-const handlePageChange = (page) => {
-  currentPage.value = page
-  getAdminList()
+// 删除重点人员
+const handleDelete = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除重点人员 ${row.username || row.phone} 吗？`,
+      '提示',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    await request.delete('/user/important_users', {
+      data: {
+        phone: row.phone,
+      },
+    })
+
+    ElMessage.success('删除成功')
+    await getImportantUserList()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+      console.error('删除失败:', error)
+    }
+  }
 }
 
-// 处理每页数量变化
+// 页码变化
+const handlePageChange = (page) => {
+  currentPage.value = page
+  getImportantUserList()
+}
+
+// 每页条数变化
 const handleSizeChange = (size) => {
   pageSize.value = size
   currentPage.value = 1
-  getAdminList()
+  getImportantUserList()
 }
 
 // 组件挂载时获取列表
 onMounted(() => {
-  getAdminList()
+  getImportantUserList()
 })
 </script>
 
@@ -557,6 +481,17 @@ onMounted(() => {
   box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
 }
 
+:deep(.el-button--danger) {
+  background: linear-gradient(45deg, #f56c6c, #ff8a8a);
+  border: none;
+}
+
+:deep(.el-button--danger:hover) {
+  background: linear-gradient(45deg, #ff8a8a, #f56c6c);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 108, 108, 0.3);
+}
+
 :deep(.el-button--default) {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -570,18 +505,27 @@ onMounted(() => {
   transform: translateY(-1px);
 }
 
-/* 弹窗样式 */
+.add-btn {
+  position: absolute;
+  bottom: 30px;
+  right: 30px;
+  padding: 12px 24px;
+  font-size: 16px;
+  box-shadow: 0 4px 16px rgba(64, 158, 255, 0.3);
+  z-index: 100;
+}
+
+.add-btn:hover {
+  box-shadow: 0 6px 20px rgba(64, 158, 255, 0.4);
+}
+
+/* 对话框样式 */
 :deep(.el-dialog) {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.2);
-  max-width: 90vw;
-  max-height: 85vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 
 :deep(.el-dialog__wrapper) {
@@ -593,8 +537,6 @@ onMounted(() => {
 }
 
 :deep(.el-dialog__body) {
-  flex: 1;
-  overflow-y: auto;
   padding: 24px;
   color: rgba(0, 0, 0, 0.85);
 }
@@ -643,51 +585,6 @@ onMounted(() => {
   background-color: rgba(255, 255, 255, 0.02) !important;
   color: rgba(0, 0, 0, 0.4) !important;
   border-color: rgba(255, 255, 255, 0.05) !important;
-}
-
-/* 头像上传 */
-.avatar-upload {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.avatar-uploader {
-  border: 2px dashed rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  cursor: pointer;
-  overflow: hidden;
-  transition: all 0.3s ease;
-  width: 150px;
-  height: 150px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.03);
-}
-
-.avatar-uploader:hover {
-  border-color: #409eff;
-  background: rgba(255, 255, 255, 0.05);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
-}
-
-.uploaded-avatar {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-uploader-icon {
-  font-size: 28px;
-  color: rgba(0, 0, 0, 0.3);
-}
-
-.upload-tip {
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.5);
-  line-height: 1.5;
 }
 
 .dialog-footer {
