@@ -40,17 +40,6 @@ watch(
   padding-left: 200px;
 }
 
-.panel::before {
-  content: '';
-  position: absolute;
-  width: 200%;
-  height: 200%;
-  top: -50%;
-  left: -50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 70%);
-  animation: rotate 60s linear infinite;
-}
-
 :deep(router-view) {
   flex: 1;
   display: flex;
@@ -79,15 +68,5 @@ watch(
 .fade-leave-to {
   opacity: 0;
   transform: scale(0.95) translateY(-10px);
-}
-
-@keyframes rotate {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>
