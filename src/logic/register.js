@@ -8,7 +8,6 @@ const instance = axios.create({
   timeout: 3000,
   headers: {
     'Content-Type': 'multipart/form-data',
-    Authorization: useAuthStore().getToken() || '',
   },
 })
 
@@ -17,6 +16,10 @@ const instance = axios.create({
  */
 instance.interceptors.request.use(
   (config) => {
+    const token = useAuthStore().getToken()
+    if (token) {
+      config.headers.Authorization = token
+    }
     return config
   },
   (error) => {
