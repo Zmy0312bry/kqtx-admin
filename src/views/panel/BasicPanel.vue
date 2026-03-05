@@ -2,38 +2,38 @@
   <div class="basic-panel">
     <!-- 顶部栏：标签页 + 我的信息按钮 -->
     <div class="panel-header">
-      <el-tabs class="custom-tabs">
-        <el-tab-pane label="人员管理">
+      <el-tabs class="custom-tabs" v-model="activeTab">
+        <el-tab-pane label="人员管理" name="user">
           <transition name="fade-slide">
             <UserProfile />
           </transition>
         </el-tab-pane>
-        <el-tab-pane label="电话管理">
+        <el-tab-pane label="电话管理" name="phone" lazy>
           <transition name="fade-slide">
             <CommunityPhone />
           </transition>
         </el-tab-pane>
-        <el-tab-pane label="轮播图管理">
+        <el-tab-pane label="轮播图管理" name="banner" lazy>
           <transition name="fade-slide">
             <SwitchBanner />
           </transition>
         </el-tab-pane>
-        <el-tab-pane label="温馨提示">
+        <el-tab-pane label="温馨提示" name="notice" lazy>
           <transition name="fade-slide">
             <WarmNotice />
           </transition>
         </el-tab-pane>
-        <el-tab-pane label="权限校验管理">
+        <el-tab-pane label="权限校验管理" name="otp" lazy>
           <transition name="fade-slide">
             <OTPCode />
           </transition>
         </el-tab-pane>
-        <el-tab-pane label="重点人员管理">
+        <el-tab-pane label="重点人员管理" name="important" lazy>
           <transition name="fade-slide">
             <ImportantUser />
           </transition>
         </el-tab-pane>
-        <el-tab-pane label="视频管理">
+        <el-tab-pane label="视频管理" name="video" lazy>
           <transition name="fade-slide">
             <VideoManagement />
           </transition>
@@ -119,7 +119,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { User, Plus } from '@element-plus/icons-vue'
 import UserProfile from '@/components/adminpanel/UserProfile.vue'
@@ -134,6 +134,7 @@ import request from '@/logic/register.js'
 const formRef = ref(null)
 const dialogVisible = ref(false)
 const saveLoading = ref(false)
+const activeTab = ref('user')
 
 // 个人信息表单
 const myInfoForm = ref({
@@ -312,8 +313,10 @@ const saveMyInfo = async () => {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   padding: 20px;
   flex: 1;
-  overflow-y: auto;
+  overflow: auto;
   transition: all 0.3s ease;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .basic-panel:hover {
@@ -323,9 +326,6 @@ const saveMyInfo = async () => {
 /* 顶部栏布局 */
 .panel-header {
   position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: 20px;
 }
 
 /* 我的信息按钮 */
@@ -359,7 +359,7 @@ const saveMyInfo = async () => {
 
 :deep(.custom-tabs) {
   background: transparent;
-  flex: 1;
+  max-width: 100%;
 }
 
 :deep(.el-tabs__header) {
