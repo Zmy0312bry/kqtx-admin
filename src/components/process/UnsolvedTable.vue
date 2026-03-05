@@ -268,6 +268,21 @@
           max-height="400"
         >
           <el-table-column prop="id" label="ID" width="60" />
+          <el-table-column label="头像" width="80" align="center">
+            <template #default="scope">
+              <el-avatar
+                :size="50"
+                :src="scope.row.avatar ? getAvatarUrl(scope.row.avatar) : undefined"
+              >
+                <el-icon><User /></el-icon>
+              </el-avatar>
+            </template>
+          </el-table-column>
+          <el-table-column prop="username" label="用户名" width="120">
+            <template #default="scope">
+              {{ scope.row.username || '暂无' }}
+            </template>
+          </el-table-column>
           <el-table-column prop="openid" label="OpenID" width="150" />
           <el-table-column prop="phone" label="手机号" width="150" />
           <el-table-column label="权限等级" width="100">
@@ -314,7 +329,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, User } from '@element-plus/icons-vue'
 import { request } from '../../logic/register'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
@@ -663,6 +678,19 @@ const handleDispatch = (row) => {
 // 选择管理员
 const handleAdminSelect = (row) => {
   selectedAdminOpenid.value = row.openid
+}
+
+// 获取头像完整URL
+const getAvatarUrl = (avatarPath) => {
+  if (!avatarPath) return ''
+  // 如果已经是完整URL，直接返回
+  if (avatarPath.startsWith('http://') || avatarPath.startsWith('https://')) {
+    return avatarPath
+  }
+  // 否则拼接base URL
+  let baseURL = import.meta.env.VITE_API_BASE_URL || ''
+  baseURL = baseURL.replace(/\/api$/, '')
+  return `${baseURL}${avatarPath}`
 }
 
 // 提交派单
