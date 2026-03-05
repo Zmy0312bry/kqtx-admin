@@ -1,38 +1,8 @@
 <template>
-  <div class="basic-panel">
+  <div class="video-panel">
     <!-- 顶部栏：标签页 + 我的信息按钮 -->
     <div class="panel-header">
       <el-tabs class="custom-tabs">
-        <el-tab-pane label="人员管理">
-          <transition name="fade-slide">
-            <UserProfile />
-          </transition>
-        </el-tab-pane>
-        <el-tab-pane label="电话管理">
-          <transition name="fade-slide">
-            <CommunityPhone />
-          </transition>
-        </el-tab-pane>
-        <el-tab-pane label="轮播图管理">
-          <transition name="fade-slide">
-            <SwitchBanner />
-          </transition>
-        </el-tab-pane>
-        <el-tab-pane label="温馨提示">
-          <transition name="fade-slide">
-            <WarmNotice />
-          </transition>
-        </el-tab-pane>
-        <el-tab-pane label="权限校验管理">
-          <transition name="fade-slide">
-            <OTPCode />
-          </transition>
-        </el-tab-pane>
-        <el-tab-pane label="重点人员管理">
-          <transition name="fade-slide">
-            <ImportantUser />
-          </transition>
-        </el-tab-pane>
         <el-tab-pane label="视频管理">
           <transition name="fade-slide">
             <VideoManagement />
@@ -122,12 +92,6 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { User, Plus } from '@element-plus/icons-vue'
-import UserProfile from '@/components/adminpanel/UserProfile.vue'
-import CommunityPhone from '@/components/adminpanel/CommunityPhone.vue'
-import SwitchBanner from '@/components/adminpanel/SwitchBanner.vue'
-import WarmNotice from '@/components/adminpanel/WarmNotice.vue'
-import OTPCode from '@/components/adminpanel/OTPCode.vue'
-import ImportantUser from '@/components/adminpanel/ImportantUser.vue'
 import VideoManagement from '@/components/adminpanel/VideoManagement.vue'
 import request from '@/logic/register.js'
 
@@ -306,7 +270,7 @@ const saveMyInfo = async () => {
 </script>
 
 <style scoped>
-.basic-panel {
+.video-panel {
   background: linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%);
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
@@ -316,7 +280,7 @@ const saveMyInfo = async () => {
   transition: all 0.3s ease;
 }
 
-.basic-panel:hover {
+.video-panel:hover {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
 }
 
