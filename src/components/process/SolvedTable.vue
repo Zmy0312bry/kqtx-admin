@@ -149,7 +149,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+
 import { request } from '../../logic/register'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
@@ -179,21 +179,40 @@ const fetchForms = async () => {
     const response = await request.get(
       `/proceed/admin_form?page=${currentPage.value}&page_size=${pageSize.value}&finish=2`,
     )
-    if (response.code === 200) {
-      formList.value = response.data.results || []
-      total.value = response.data.total || 0
+    if (response?.code === 200) {
+      formList.value = response?.data?.results || []
+      total.value = response?.data?.total || 0
       // 确保当前页码不超过总页数
       const maxPage = Math.ceil(total.value / pageSize.value)
       if (currentPage.value > maxPage && maxPage > 0) {
         currentPage.value = maxPage
         await fetchForms()
       }
-    } else {
-      ElMessage.error(response.message || '获取表单列表失败')
+      return
     }
+
+    // 404 视为空数据（不报错）
+    if (response?.code === 404) {
+      formList.value = []
+      total.value = 0
+      return
+    }
+
+    // 其他非200也按空数据处理，不在页面报错
+    formList.value = []
+    total.value = 0
   } catch (error) {
-    ElMessage.error('获取表单列表失败')
+    // axios 抛错场景：404 视为空数据（不报错）
+    if (error?.response?.status === 404) {
+      formList.value = []
+      total.value = 0
+      return
+    }
+
+    // 其他错误也不在页面弹错
     console.error('Failed to fetch forms:', error)
+    formList.value = []
+    total.value = 0
   }
 }
 
@@ -216,15 +235,17 @@ const formatTime = (timestamp) => {
 const handleRowClick = async (row) => {
   try {
     const response = await request.get(`/proceed/admin_form?uuid=${row.uuidx}`)
-    if (response.code === 200 && response.data.length > 0) {
+    if (response?.code === 200 && Array.isArray(response?.data) && response.data.length > 0) {
       currentForm.value = response.data[0]
       dialogVisible.value = true
-    } else {
-      ElMessage.error('获取详细信息失败')
+      return
     }
+
+    // 404/空数据：静默处理，不弹错误
   } catch (error) {
-    ElMessage.error('获取详细信息失败')
-    console.error('Failed to fetch form details:', error)
+    if (error?.response?.status !== 404) {
+      console.error('Failed to fetch form details:', error)
+    }
   }
 }
 

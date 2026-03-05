@@ -397,35 +397,40 @@ const fetchForms = async () => {
     }
 
     const response = await request.get(url)
-    if (response.code === 200) {
-      formList.value = response.data.results || []
-      total.value = response.data.total || 0
+    if (response?.code === 200) {
+      formList.value = response?.data?.results || []
+      total.value = response?.data?.total || 0
       // 确保当前页码不超过总页数
       const maxPage = Math.ceil(total.value / pageSize.value)
       if (currentPage.value > maxPage && maxPage > 0) {
         currentPage.value = maxPage
         await fetchForms()
       }
-    } else {
-      // 判断是否为"表单不存在"错误，如果是则只显示空状态，不报错
-      if (response.message !== '出现错误：表单不存在') {
-        ElMessage.error(response.message || '获取表单列表失败')
-      } else {
-        // 表单不存在时，清空列表并让表格显示空状态
-        formList.value = []
-        total.value = 0
-      }
+      return
     }
-  } catch (error) {
-    // 判断是否为"表单不存在"错误，如果是则只显示空状态，不报错
-    if (error.response?.data?.message !== '出现错误：表单不存在') {
-      ElMessage.error('获取表单列表失败')
-      console.error('Failed to fetch forms:', error)
-    } else {
-      // 表单不存在时，清空列表并让表格显示空状态
+
+    // 404 视为空数据（不报错）
+    if (response?.code === 404) {
       formList.value = []
       total.value = 0
+      return
     }
+
+    // 其他非200也清空列表，不在页面报错
+    formList.value = []
+    total.value = 0
+  } catch (error) {
+    // axios 抛错场景：404 视为空数据（不报错）
+    if (error?.response?.status === 404) {
+      formList.value = []
+      total.value = 0
+      return
+    }
+
+    // 其他错误也不在页面弹错
+    console.error('Failed to fetch forms:', error)
+    formList.value = []
+    total.value = 0
   }
 }
 
@@ -459,15 +464,15 @@ const formatTime = (timestamp) => {
 const handleRowClick = async (row) => {
   try {
     const response = await request.get(`/proceed/admin_form?uuid=${row.uuidx}`)
-    if (response.code === 200 && response.data.length > 0) {
+    if (response?.code === 200 && Array.isArray(response?.data) && response.data.length > 0) {
       currentForm.value = response.data[0]
       dialogVisible.value = true
-    } else if (response.message !== '出现错误：表单不存在') {
-      ElMessage.error('获取详细信息失败')
+      return
     }
+
+    // 404/空数据：静默处理，不弹错误
   } catch (error) {
-    if (error.response?.data?.message !== '出现错误：表单不存在') {
-      ElMessage.error('获取详细信息失败')
+    if (error?.response?.status !== 404) {
       console.error('Failed to fetch form details:', error)
     }
   }
@@ -477,18 +482,18 @@ const handleRowClick = async (row) => {
 const handleProcess = async (row) => {
   try {
     const response = await request.get(`/proceed/admin_form?uuid=${row.uuidx}`)
-    if (response.code === 200 && response.data.length > 0) {
+    if (response?.code === 200 && Array.isArray(response?.data) && response.data.length > 0) {
       currentForm.value = response.data[0]
       // 使用用户信息填充默认值
       processForm.value.name = userInfo.value.username
       processForm.value.phone = userInfo.value.phone
       processDialogVisible.value = true
-    } else if (response.message !== '出现错误：表单不存在') {
-      ElMessage.error('获取详细信息失败')
+      return
     }
+
+    // 404/空数据：静默处理，不弹错误
   } catch (error) {
-    if (error.response?.data?.message !== '出现错误：表单不存在') {
-      ElMessage.error('获取详细信息失败')
+    if (error?.response?.status !== 404) {
       console.error('Failed to fetch form details:', error)
     }
   }
@@ -528,11 +533,10 @@ const handleImageChange = async (file) => {
       // 使用返回的message或默认消息
       ElMessage.success(response.data.message || '图片上传成功')
     } else {
-      ElMessage.error(response.message || '图片上传失败')
+      console.error(response.message || '图片上传失败')
       uploadFileList.value = uploadFileList.value.filter((f) => f.uid !== file.uid)
     }
   } catch (error) {
-    ElMessage.error('图片上传失败')
     console.error('图片上传失败:', error)
     uploadFileList.value = uploadFileList.value.filter((f) => f.uid !== file.uid)
   }
@@ -582,10 +586,9 @@ const submitProcess = async () => {
         // 刷新列表
         await fetchForms()
       } else {
-        ElMessage.error(response.message || '处理失败')
+        console.error(response.message || '处理失败')
       }
     } catch (error) {
-      ElMessage.error('处理失败')
       console.error('Failed to process form:', error)
     } finally {
       submitting.value = false
@@ -636,11 +639,8 @@ const fetchAdminList = async () => {
         (admin) => admin.permission_level === 1 || admin.permission_level === 4,
       )
       adminTotal.value = adminList.value.length
-    } else {
-      ElMessage.error(response.message || '获取管理员列表失败')
     }
   } catch (error) {
-    ElMessage.error('获取管理员列表失败')
     console.error('Failed to fetch admin list:', error)
   }
 }
@@ -684,10 +684,9 @@ const submitDispatch = async () => {
       // 刷新表单列表
       await fetchForms()
     } else {
-      ElMessage.error(response.message || '派单失败')
+      console.error(response.message || '派单失败')
     }
   } catch (error) {
-    ElMessage.error('派单失败')
     console.error('Failed to dispatch order:', error)
   } finally {
     dispatching.value = false

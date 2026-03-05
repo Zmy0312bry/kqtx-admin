@@ -323,21 +323,47 @@ const fetchForms = async () => {
     const response = await request.get(
       `/proceed/admin_handle?page=${currentPage.value}&page_size=${pageSize.value}`,
     )
-    if (response.code === 200) {
-      formList.value = response.data.results || []
-      total.value = response.data.total || 0
+    if (response?.code === 200) {
+      formList.value = response?.data?.results || []
+      total.value = response?.data?.total || 0
       // 确保当前页码不超过总页数
       const maxPage = Math.ceil(total.value / pageSize.value)
       if (currentPage.value > maxPage && maxPage > 0) {
         currentPage.value = maxPage
         await fetchForms()
       }
-    } else {
-      ElMessage.error(response.message || '获取表单列表失败')
+      return
     }
+
+    // 404 视为空数据，不报错
+    if (
+      response?.code === 404 ||
+      response?.message === '出现错误：表单不存在' ||
+      response?.message?.includes?.('表单不存在')
+    ) {
+      formList.value = []
+      total.value = 0
+      return
+    }
+
+    // 其他非200情况：不弹错，保持空数据
+    formList.value = []
+    total.value = 0
   } catch (error) {
-    ElMessage.error('获取表单列表失败')
+    // axios 抛错场景的 404：视为空数据，不报错
+    if (
+      error?.response?.status === 404 ||
+      error?.response?.data?.message === '出现错误：表单不存在' ||
+      error?.response?.data?.message?.includes?.('表单不存在')
+    ) {
+      formList.value = []
+      total.value = 0
+      return
+    }
+
     console.error('Failed to fetch forms:', error)
+    formList.value = []
+    total.value = 0
   }
 }
 
@@ -360,14 +386,28 @@ const formatTime = (timestamp) => {
 const handleRowClick = async (row) => {
   try {
     const response = await request.get(`/proceed/admin_form?uuid=${row.uuidx}`)
-    if (response.code === 200 && response.data.length > 0) {
+    if (response?.code === 200 && Array.isArray(response?.data) && response.data.length > 0) {
       currentForm.value = response.data[0]
       dialogVisible.value = true
-    } else {
-      ElMessage.error('获取详细信息失败')
+      return
+    }
+
+    // 404 / 表单不存在：静默处理，不报错
+    if (
+      response?.code === 404 ||
+      response?.message === '出现错误：表单不存在' ||
+      response?.message?.includes?.('表单不存在')
+    ) {
+      return
     }
   } catch (error) {
-    ElMessage.error('获取详细信息失败')
+    if (
+      error?.response?.status === 404 ||
+      error?.response?.data?.message === '出现错误：表单不存在' ||
+      error?.response?.data?.message?.includes?.('表单不存在')
+    ) {
+      return
+    }
     console.error('Failed to fetch form details:', error)
   }
 }
@@ -376,14 +416,28 @@ const handleRowClick = async (row) => {
 const handleFeedback = async (row) => {
   try {
     const response = await request.get(`/proceed/admin_form?uuid=${row.uuidx}`)
-    if (response.code === 200 && response.data.length > 0) {
+    if (response?.code === 200 && Array.isArray(response?.data) && response.data.length > 0) {
       currentForm.value = response.data[0]
       feedbackDialogVisible.value = true
-    } else {
-      ElMessage.error('获取详细信息失败')
+      return
+    }
+
+    // 404 / 表单不存在：静默处理，不报错
+    if (
+      response?.code === 404 ||
+      response?.message === '出现错误：表单不存在' ||
+      response?.message?.includes?.('表单不存在')
+    ) {
+      return
     }
   } catch (error) {
-    ElMessage.error('获取详细信息失败')
+    if (
+      error?.response?.status === 404 ||
+      error?.response?.data?.message === '出现错误：表单不存在' ||
+      error?.response?.data?.message?.includes?.('表单不存在')
+    ) {
+      return
+    }
     console.error('Failed to fetch form details:', error)
   }
 }
