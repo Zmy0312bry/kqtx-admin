@@ -16,6 +16,7 @@ import CommunityShow from '@/components/adminpanel/CommunityShow.vue'
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   padding: 20px;
+  padding-top: 30px;
   flex: 1;
   overflow-y: auto;
   transition: all 0.3s ease;

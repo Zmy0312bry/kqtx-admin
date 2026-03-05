@@ -16,6 +16,9 @@
       class="admin-table"
       header-row-class-name="table-header"
       :row-style="{ height: '70px' }"
+      height="400"
+      style="width: 100%"
+      table-layout="fixed"
     >
       <el-table-column label="头像" width="100" align="center">
         <template #default="{ row }">
@@ -107,9 +110,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="addDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="handleAddUser" :loading="addLoading">
-            添加
-          </el-button>
+          <el-button type="primary" @click="handleAddUser" :loading="addLoading"> 添加 </el-button>
         </span>
       </template>
     </el-dialog>
@@ -127,6 +128,8 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import request from '@/logic/register.js'
+
+console.log('[ImportantUser] 组件脚本开始执行')
 
 const loading = ref(false)
 const addLoading = ref(false)
@@ -188,6 +191,7 @@ const addRules = {
 
 // 获取重点人员列表
 const getImportantUserList = async () => {
+  console.log('[ImportantUser] getImportantUserList 开始执行')
   try {
     loading.value = true
     const response = await request.get('/user/important_users', {
@@ -197,13 +201,16 @@ const getImportantUserList = async () => {
       },
     })
 
+    console.log('[ImportantUser] API 响应:', response)
+
     if (response.code === 200 && response.data) {
       importantUserList.value = response.data.results || []
       totalUsers.value = response.data.total || 0
       totalPages.value = response.data.total_pages || 0
+      console.log('[ImportantUser] 解析后的列表:', importantUserList.value)
 
       // 构建完整的头像URL
-      importantUserList.value.forEach(user => {
+      importantUserList.value.forEach((user) => {
         if (user.avatar && !user.avatar.startsWith('http')) {
           let baseURL = import.meta.env.VITE_API_BASE_URL || ''
           baseURL = baseURL.replace(/\/api$/, '')
@@ -211,11 +218,12 @@ const getImportantUserList = async () => {
         }
       })
     } else {
+      console.warn('[ImportantUser] 响应异常:', response)
       ElMessage.error('获取重点人员列表失败')
     }
   } catch (error) {
     ElMessage.error('获取重点人员列表失败')
-    console.error('获取重点人员列表失败:', error)
+    console.error('[ImportantUser] 获取重点人员列表失败:', error)
   } finally {
     loading.value = false
   }
@@ -257,15 +265,11 @@ const handleAddUser = async () => {
 // 删除重点人员
 const handleDelete = async (row) => {
   try {
-    await ElMessageBox.confirm(
-      `确定要删除重点人员 ${row.username || row.phone} 吗？`,
-      '提示',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      }
-    )
+    await ElMessageBox.confirm(`确定要删除重点人员 ${row.username || row.phone} 吗？`, '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
 
     await request.delete('/user/important_users', {
       data: {
@@ -298,8 +302,13 @@ const handleSizeChange = (size) => {
 
 // 组件挂载时获取列表
 onMounted(() => {
+  console.log('[ImportantUser] onMounted 触发')
   getImportantUserList()
 })
+
+// 立即执行一次（防止懒加载导致 onMounted 不触发）
+console.log('[ImportantUser] 立即调用 getImportantUserList')
+getImportantUserList()
 </script>
 
 <style scoped>
@@ -311,9 +320,11 @@ onMounted(() => {
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.05);
   animation: fadeIn 0.5s ease-out;
-  height: 80vh;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 @keyframes fadeIn {
@@ -341,6 +352,7 @@ onMounted(() => {
   transition:
     transform 0.3s ease,
     box-shadow 0.3s ease;
+  flex-shrink: 0;
 }
 
 .page-header:hover {
@@ -367,13 +379,22 @@ onMounted(() => {
 
 .admin-table {
   flex: 1;
-  width: 100%;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 200px;
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.05);
+  box-sizing: border-box;
+}
+
+:deep(.el-table__header-wrapper),
+:deep(.el-table__body-wrapper) {
+  width: 100% !important;
+  overflow-x: auto;
 }
 
 :deep(.table-header th) {

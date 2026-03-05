@@ -5,10 +5,7 @@ import { useAuthStore } from '../stores/token'
  */
 const instance = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '',
-  timeout: 3000,
-  headers: {
-    'Content-Type': 'multipart/form-data',
-  },
+  timeout: 15000,
 })
 
 /**
@@ -20,6 +17,14 @@ instance.interceptors.request.use(
     if (token) {
       config.headers.Authorization = token
     }
+    // 只有在上传文件时才使用 multipart/form-data
+    // GET 请求和普通 POST 请求使用 application/json
+    if (config.data instanceof FormData) {
+      config.headers['Content-Type'] = 'multipart/form-data'
+    } else if (config.method !== 'get' && config.data) {
+      config.headers['Content-Type'] = 'application/json'
+    }
+    console.log('[Request]', config.method?.toUpperCase(), config.url, config)
     return config
   },
   (error) => {
@@ -33,10 +38,11 @@ instance.interceptors.request.use(
  */
 instance.interceptors.response.use(
   (response) => {
+    console.log('[Response]', response.config.url, response.data)
     return response.data
   },
   (error) => {
-    console.error('Response error:', error)
+    console.error('[Response Error]', error.config?.url, error.message, error)
     return Promise.reject(error)
   },
 )

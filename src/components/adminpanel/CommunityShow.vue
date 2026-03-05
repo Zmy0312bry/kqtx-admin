@@ -180,7 +180,8 @@ onMounted(() => {
 <style scoped>
 .community-show {
   display: flex;
-  height: 100vh;
+  height: calc(100vh - 200px);
+  min-height: 500px;
   background-color: #f5f7fa;
 }
 

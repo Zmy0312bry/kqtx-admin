@@ -16,6 +16,9 @@
       class="admin-table"
       header-row-class-name="table-header"
       :row-style="{ height: '70px' }"
+      height="400"
+      style="width: 100%"
+      table-layout="fixed"
     >
       <el-table-column label="头像" width="100" align="center">
         <template #default="{ row }">
@@ -157,7 +160,9 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Edit, Plus } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import request from '../../logic/register.js'
+import request from '@/logic/register.js'
+
+console.log('[UserProfile] 组件脚本开始执行')
 
 const router = useRouter()
 const formRef = ref(null)
@@ -249,20 +254,48 @@ const rules = {
 
 // 获取管理员列表
 const getAdminList = async () => {
+  console.log('[UserProfile] getAdminList 开始执行')
   try {
     loading.value = true
-    const response = await request.get(
-      `/user/Adminlist?page=${currentPage.value}&page_size=${pageSize.value}`,
-    )
+    const url = `/user/Adminlist?page=${currentPage.value}&page_size=${pageSize.value}`
+    console.log('[UserProfile] 请求URL:', url)
+
+    const response = await request.get(url)
+
+    // 调试：打印完整响应
+    console.log('[UserProfile] API 响应:', response)
+    console.log('[UserProfile] 响应类型:', typeof response)
+    console.log('[UserProfile] response.data:', response.data)
 
     if (response.code === 200 && response.data) {
-      adminList.value = response.data.results || []
-      totalUsers.value = response.data.total || 0
-      totalPages.value = response.data.total_pages || 0
+      // 兼容两种数据结构：data.results 或直接是数组
+      if (Array.isArray(response.data)) {
+        // 如果 data 直接是数组
+        adminList.value = response.data
+        totalUsers.value = response.data.length
+        totalPages.value = 1
+      } else if (response.data.results) {
+        // 如果 data 包含 results 字段
+        adminList.value = response.data.results || []
+        totalUsers.value = response.data.total || 0
+        totalPages.value = response.data.total_pages || 0
+      } else {
+        console.warn('[UserProfile] 未知的数据结构:', response.data)
+        adminList.value = []
+      }
+      console.log('[UserProfile] 解析后的 adminList:', adminList.value)
+    } else {
+      console.warn('[UserProfile] 响应 code 不是 200 或没有 data:', response)
+      // 尝试直接使用 response 作为数据（某些后端直接返回数据）
+      if (Array.isArray(response)) {
+        adminList.value = response
+        totalUsers.value = response.length
+        totalPages.value = 1
+      }
     }
   } catch (error) {
     ElMessage.error('获取管理员列表失败')
-    console.error('获取管理员列表失败:', error)
+    console.error('[UserProfile] 获取管理员列表失败:', error)
     if (error.response && error.response.status === 401) {
       router.push('/login')
     }
@@ -374,8 +407,13 @@ const handleSizeChange = (size) => {
 
 // 组件挂载时获取列表
 onMounted(() => {
+  console.log('[UserProfile] onMounted 触发')
   getAdminList()
 })
+
+// 立即执行一次（防止懒加载导致 onMounted 不触发）
+console.log('[UserProfile] 立即调用 getAdminList')
+getAdminList()
 </script>
 
 <style scoped>
@@ -386,21 +424,11 @@ onMounted(() => {
   border-radius: 12px;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  animation: fadeIn 0.5s ease-out;
-  height: 80vh;
   display: flex;
   flex-direction: column;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .page-header {
@@ -417,6 +445,7 @@ onMounted(() => {
   transition:
     transform 0.3s ease,
     box-shadow 0.3s ease;
+  flex-shrink: 0;
 }
 
 .page-header:hover {
@@ -443,13 +472,22 @@ onMounted(() => {
 
 .admin-table {
   flex: 1;
-  width: 100%;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 200px;
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(10px);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.05);
+  box-sizing: border-box;
+}
+
+:deep(.el-table__header-wrapper),
+:deep(.el-table__body-wrapper) {
+  width: 100% !important;
+  overflow-x: auto;
 }
 
 :deep(.table-header th) {
