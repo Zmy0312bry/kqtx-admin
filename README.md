@@ -34,8 +34,6 @@
 
 1. `Node.js`（推荐最新的 LTS 版本） & `npm` 包管理器
 
-2. 百度地图 API 密钥
-
 ### 快速开始
 
 1. 克隆仓库：
@@ -47,7 +45,7 @@ git clone https://github.com:zhao-leo/kqtx-admin.git
 npm install
 ```
 3. 配置环境变量：
-复制`/.env.example`到`/.env`并修改其中的内容为自己的百度地图APIe和后端API
+复制`/.env.example`到`/.env`并修改其中的内容为自己的后端API
 
 4. 启动开发服务器：
 ```bash
