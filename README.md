@@ -38,7 +38,7 @@
 
 1. 克隆仓库：
 ```bash
-git clone https://github.com:zhao-leo/kqtx-admin.git
+git clone https://github.com:BUPT-Bridge/kqtx-admin.git
 ```
 2. 安装依赖：
 ```bash
@@ -60,5 +60,4 @@ npm run build
 主要配置通过环境变量管理：
 |环境变量名称|对应的内容|
 |------------|----------|
-|VITE_BAIDU_MAP_KEY|百度地图 API 密钥|
 |VITE_API_BASE_URL|后端 API 基础 URL|
