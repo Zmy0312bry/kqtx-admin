@@ -31,8 +31,11 @@
       </div>
     </div>
     <!-- 添加ICP备案信息 -->
+    <!-- 添加ICP备案信息 -->
     <div class="icp-footer">
-      <a :href="icpLink" target="_blank" rel="noopener noreferrer"> {{ icpNumber }} </a>
+      <a :href="icpLink" target="_blank" rel="noopener noreferrer">{{ icpNumber }}</a>
+      <span class="footer-divider">|</span>
+      <span class="app-version">v{{ appVersion }}</span>
     </div>
   </div>
 </template>
@@ -46,6 +49,8 @@ const currentTab = ref('qrcode')
 
 // 从环境变量读取ICP备案号
 const icpNumber = import.meta.env.VITE_ICP_NUMBER || 'XXXXXXXX'
+// 从环境变量读取应用版本号（与 package.json 保持一致）
+const appVersion = import.meta.env.VITE_APP_VERSION || '0.0.0'
 // 工信部备案管理系统网址
 const icpLink = 'https://beian.miit.gov.cn/'
 </script>
@@ -145,6 +150,10 @@ const icpLink = 'https://beian.miit.gov.cn/'
   font-size: 12px;
   color: rgba(0, 0, 0, 0.45);
   z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .icp-footer a {
