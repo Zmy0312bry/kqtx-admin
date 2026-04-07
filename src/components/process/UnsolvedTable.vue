@@ -649,9 +649,12 @@ const fetchAdminList = async () => {
       `/user/Adminlist?page=${adminPage.value}&page_size=${adminPageSize.value}`,
     )
     if (response.code === 200) {
-      // 只筛选 permission_level 为 1 和 4 的管理员
+      // 只筛选 permission_level 为 1、3 和 4 的管理员
       adminList.value = (response.data.results || []).filter(
-        (admin) => admin.permission_level === 1 || admin.permission_level === 4,
+        (admin) =>
+          admin.permission_level === 1 ||
+          admin.permission_level === 3 ||
+          admin.permission_level === 4,
       )
       adminTotal.value = adminList.value.length
     }
@@ -664,7 +667,7 @@ const fetchAdminList = async () => {
 const handleAdminPageChange = (page) => {
   adminPage.value = page
   fetchAdminList()
-}
+} //TODO
 
 // 打开派单对话框
 const handleDispatch = (row) => {
